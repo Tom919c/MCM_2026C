@@ -1,0 +1,10 @@
+# MCM 2026 Problem C 配置文件
+
+# 数据路径配置
+raw_data_path: "data/raw/2026_MCM_Problem_C_Data.csv"
+processed_data_path: "data/processed/"
+output_path: "outputs/"
+state_population_file: "NST-EST2025-POP.xlsx"
+
+# 数据处理配置
+encoding: "utf-8-sig"

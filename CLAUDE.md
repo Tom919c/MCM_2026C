@@ -12,6 +12,9 @@ Claude 在本项目中应扮演：
 - 只有代码注释、claude回答、命令行打印信息用中文，其它地方一律用英文
 - 图表上的标注，变量、函数等的命名用英文
 - 命令行输出不要有emoji符号，只能用文本
+- 在处理大规模计算时，优先考虑使用pandas和numpy进行向量化运算，而不是用python循环
+- 在编写代码时，你的问题解决方案必须全都都由用户来提供或者你提供解决思路用户确认后你才可编写代码，如果遇到因为用户疏忽没有给你某个问题的解决思路，你必须立刻停止编写代码并询问用户问题如何解决
+- 不可自行运行代码，得到用户让你运行代码的指令后才可运行
 
 ## Python Environment
 
@@ -19,6 +22,41 @@ Claude 在本项目中应扮演：
 - 环境名称：MCM
 - 所有代码均默认在 MCM 环境下运行
 - 激活命令： activate MCM
+
+
+## 编码问题处理规范
+
+**重要：在处理文件读写时，必须考虑编码兼容性**
+
+在读取CSV文件时，**不要直接使用单一编码**（如`encoding='utf-8'`），而应该：
+
+1. **使用多编码尝试机制**：
+   
+   ```python
+   def read_csv_with_encoding(file_path):
+       """尝试多种编码读取CSV文件"""
+       encodings = ['utf-8-sig', 'utf-8', 'latin-1', 'cp1252', 'gbk']
+       for encoding in encodings:
+           try:
+               return pd.read_csv(file_path, encoding=encoding)
+           except UnicodeDecodeError:
+               continue
+       # 最后使用utf-8并忽略错误
+       return pd.read_csv(file_path, encoding='utf-8', errors='ignore')
+   
+2. 常见编码顺序：
+  - utf-8-sig：处理带BOM的UTF-8文件
+  - utf-8：标准UTF-8
+  - latin-1 / cp1252：Windows常用编码
+  - gbk：中文Windows系统
+
+在写入文件时：使用encoding='utf-8-sig'确保跨平台兼容
+
+原则
+
+- 永远不要假设文件编码
+- 提供编码容错机制
+- 在Windows环境下尤其注意编码问题
 
 
 # MCM C题通用代码结构设计
@@ -30,7 +68,7 @@ Claude 在本项目中应扮演：
 
 ## 2. 数据字典
 
-- 结构：普通Python字典，存放所有数据
+- 结构：普通Python字典，存放所有数据，将所有处理的数据均存入一个全局数据字典统一管理
 - 辅助函数：
   - `save_data(data_dict, path)` - 保存数据字典到文件
   - `data_dict = load_data(path)` - 从文件加载数据字典
@@ -74,43 +112,7 @@ Claude 在本项目中应扮演：
 
 ## 8. 目录结构
 ```
-  MCM_2026C/                                                                                                                                   │
-  ├── configs/                          # 配置文件目录                                                                                       
-  │   ├── config.yaml                   # 主配置文件
-  │   └── config_*.yaml                 # 其他实验配置
-  │
-  ├── data/                             # 数据目录
-  │   ├── raw/                          # 原始数据
-  │   ├── processed/                    # 处理后的数据（.pkl文件）
-  │   └── models/                       # 训练好的模型（.pth文件）
-  │
-  ├── src/                              # 源代码目录
-  │   ├── __init__.py
-  │   ├── config_loader.py              # 配置加载：load_config()
-  │   ├── data_manager.py               # 数据管理：save_data(), load_data()
-  │   ├── data_processing.py            # 数据处理：各种 process_xxx(config, datas)
-  │   ├── feature_engineering.py        # 特征工程：各种 build_xxx(config, datas)
-  │   ├── model_loader.py               # 模型加载：load_model(), save_model()
-  │   ├── training.py                   # 训练：train(config, model, datas)
-  │   ├── prediction.py                 # 预测：predict_xxx(config, model, datas)
-  │   ├── evaluation.py                 # 评估：evaluate_xxx(config, model, datas)
-  │   ├── analysis.py                   # 分析：analyze_xxx(config, datas)
-  │   ├── visualization.py              # 可视化：visualize_xxx(config, datas, tag)
-  │   └── utils.py                      # 工具函数
-  │
-  ├── pipelines/                        # Pipeline脚本目录
-  │   ├── train_pipeline.py             # 训练流程
-  │   ├── predict_pipeline.py           # 预测流程
-  │   ├── analysis_pipeline.py          # 分析流程
-  │   └── experiment_pipeline.py        # 实验对比流程
-  │
-  ├── outputs/                          # 输出目录（按tag自动创建子目录）
-  │
-  ├── notebooks/                        # Jupyter notebooks（可选）
-  │
-  ├── CLAUDE.md                         # 项目指导文档
-  ├── README.md                         # 项目说明
-  └── requirements.txt                  # Python依赖
+
 
 ```
 
@@ -168,7 +170,6 @@ save_data(datas, 'final_results.pkl')
 
 ```python
 """
-奥运奖牌预测 - 训练流程
 清晰的函数式流程，每一步都明确输入输出
 """
 
@@ -180,12 +181,8 @@ datas = {}
 
 # ========== 数据准备阶段 ==========
 datas = load_raw_data(config, datas)              # 加载原始CSV数据
-datas = preprocess_athletes(config, datas)        # 运动员数据预处理
-datas = preprocess_medals(config, datas)          # 奖牌数据预处理
-datas = deduplicate_team_events(config, datas)    # 集体项目去重
-datas = calculate_athlete_strength(config, datas) # 计算运动员强度
+datas = preprocess_xxx(config, datas)        	  # 数据预处理
 datas = build_features(config, datas)             # 特征工程
-datas = create_sequences(config, datas)           # 创建时间序列
 datas = split_train_test(config, datas)           # 划分训练/测试集
 
 # 保存预处理数据
@@ -216,7 +213,6 @@ print("训练流程完成！")
 
 ```python
 """
-奥运奖牌预测 - 2028预测流程
 专注于预测任务，流程简洁明了
 """
 
@@ -227,8 +223,8 @@ model = load_model_weights('trained_model.pth')
 # 加载预处理数据
 datas = load_data('processed_data.pkl')
 
-# ========== 2028预测 ==========
-datas = prepare_2028_features(config, datas)      # 准备2028特征
+# ========== 预测 ==========
+datas = prepare_features(config, datas)           # 准备特征
 datas = predict_2028_gold(config, model, datas)   # 预测金牌
 datas = predict_2028_medals(config, model, datas) # 预测总奖牌
 datas = rank_countries(config, datas)             # 国家排名
@@ -250,30 +246,12 @@ print("2028预测完成！")
 
 ```python
 """
-奥运奖牌预测 - 深度分析流程
 多维度分析，流程清晰可扩展
 """
 
 # 加载配置和数据
 config = load_config('config.yaml')
 datas = load_data('train_results.pkl')
-
-# ========== 基尼系数分析 ==========
-datas = calculate_gini_coefficient(config, datas)
-datas = analyze_gini_trend(config, datas)
-visualize_gini_curve(config, datas, 'gini_analysis')
-
-# ========== 东道主效应分析 ==========
-datas = identify_host_countries(config, datas)
-datas = calculate_host_advantage(config, datas)
-datas = compare_host_performance(config, datas)
-visualize_host_effect(config, datas, 'host_analysis')
-
-# ========== 运动项目相似度分析 ==========
-datas = calculate_sport_similarity(config, datas)
-datas = cluster_sports(config, datas)
-datas = find_sport_patterns(config, datas)
-visualize_sport_similarity(config, datas, 'sport_similarity')
 
 # ========== 稳定性分析 ==========
 datas = calculate_country_stability(config, datas)
@@ -339,51 +317,6 @@ print("实验对比完成！")
 ```
 
 ## 11. 函数式方法的优势
-
-### 对比：传统方法 vs 函数式方法
-
-**传统方法的问题：**
-
-```python
-# 传统方法：复杂、难以理解、难以维护
-def main():
-    preprocessor = DataPreprocessor()
-    preprocessor.run_pipeline()
-
-    processed_data = utils.load_pickle(config.PROCESSED_DATA_PATH)
-
-    strength_df = None
-    if config.USE_ATHLETE_STRENGTH:
-        print("\n计算运动员强度特征...")
-        athletes_df = processed_data['athletes_df']
-        calculator = AthleteStrengthCalculator(athletes_df)
-        strength_df = calculator.run_pipeline()
-
-    feature_engineer = FeatureEngineer(processed_data, strength_df=strength_df)
-    feature_engineer.run_pipeline()
-
-    # ... 更多复杂的代码
-```
-
-**函数式方法的优势：**
-
-```python
-# 函数式方法：清晰、简洁、易于维护
-config = load_config('config.yaml')
-datas = {}
-
-datas = load_raw_data(config, datas)
-datas = preprocess_data(config, datas)
-datas = calculate_athlete_strength(config, datas)
-datas = build_features(config, datas)
-datas = split_dataset(config, datas)
-
-model = load_model(config)
-model = train(config, model, datas)
-datas = evaluate(config, model, datas)
-
-visualize_results(config, datas, 'results')
-```
 
 **核心优势：**
 
