@@ -6,5 +6,8 @@ processed_data_path: "data/processed/"
 output_path: "outputs/"
 state_population_file: "NST-EST2025-POP.xlsx"
 
+# 模型路径配置
+model_path: "data/models/model.pkl"
+
 # 数据处理配置
 encoding: "utf-8-sig"

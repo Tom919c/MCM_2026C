@@ -765,11 +765,11 @@ def calculate_raw_scores(long_df, missing_judge4_weeks):
         scores = []
         for j in range(1, 5 if has_judge4 else 4):
             score = row.get(f'judge{j}_score', np.nan)
-            if pd.notna(score) and score != 0:
+            if pd.notna(score):
                 scores.append(score)
 
         if len(scores) == 0:
-            return np.nan
+            return 0  # 如果没有有效分数，返回0而不是NaN
 
         return np.sum(scores)
 
@@ -819,6 +819,7 @@ def calculate_score_trend(long_df):
     def calc_trend(group):
         group = group.copy()
         group['prev_z_score'] = group['z_score'].shift(1)
+        group['prev_z_score'] = group['prev_z_score'].fillna(0)  # 第一周填0
         group['score_trend'] = group['z_score'] - group['prev_z_score']
         group['score_trend'] = group['score_trend'].fillna(0)  # 第一周填0
         return group
@@ -1098,7 +1099,7 @@ def add_context_features(config, datas):
     - season_era: 赛季时代（1=早期, 2=中期, 3=社媒期）
     - rule_method: 投票规则（0=排名法, 1=百分比法）
     - judge_save_active: 评委拯救机制（0/1）
-    - eliminations_this_week: 本周淘汰人数
+    - elimination_count: 本周淘汰人数
 
     Args:
         config: 配置字典
@@ -1215,10 +1216,10 @@ def add_weekly_eliminations(long_df):
         key = (row['season_id'], row['week_id'])
         return elimination_counts.get(key, 0)
 
-    long_df['eliminations_this_week'] = long_df.apply(get_eliminations, axis=1)
+    long_df['elimination_count'] = long_df.apply(get_eliminations, axis=1)
 
     # 统计信息
-    unique_eliminations = long_df.groupby(['season_id', 'week_id'])['eliminations_this_week'].first()
+    unique_eliminations = long_df.groupby(['season_id', 'week_id'])['elimination_count'].first()
 
     print(f"  - 无淘汰周: {(unique_eliminations == 0).sum()} 周")
     print(f"  - 单淘汰周: {(unique_eliminations == 1).sum()} 周")

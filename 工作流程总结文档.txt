@@ -14,3 +14,9 @@ withdrew  选手退出
 1. 原始数据保存在 datas['raw_data'] 中（保持不变）                                                                              
 2. 新特征保存在 datas['features'] 中（包含3列：previous_seasons_count, celebrity_gender, ballroom_partner_gender）
 
+    [WARN] judge3_score: mean=nan, std=nan
+    [WARN] judge4_score: mean=nan, std=nan
+
+
+
+    prev_z_score

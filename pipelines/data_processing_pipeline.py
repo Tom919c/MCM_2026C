@@ -46,8 +46,8 @@ def main():
     # ========== 数据保存阶段 ==========
     print("\n[4/4] 保存处理后的数据")
 
-    # 保存为pickle格式（包含原始数据和特征数据）
-    save_data(datas, 'data/processed/data_with_features.pkl')
+    # 注意：不再保存 data_with_features.pkl，请使用 feature_engineering_pipeline.py 生成完整数据
+    # save_data(datas, 'data/processed/data_with_features.pkl')
 
     # 导出特征数据CSV（以行号为索引）
     output_features_csv = 'data/processed/features.csv'
@@ -57,6 +57,7 @@ def main():
     print("\n" + "=" * 60)
     print("数据处理流程完成")
     print("=" * 60)
+
 
 
 if __name__ == "__main__":

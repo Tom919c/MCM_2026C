@@ -69,10 +69,6 @@ def main():
     print("=" * 60)
     datas = add_static_features(config, datas)
 
-    # 保存宽格式数据
-    save_data(datas, 'data/processed/wide_format_with_features.pkl')
-    print("\n宽格式数据已保存")
-
     # ========== 阶段5：格式转换 ==========
     print("\n" + "=" * 60)
     print("阶段5：格式转换（宽→长）")
@@ -111,10 +107,11 @@ def main():
     print("阶段10：保存最终数据")
     print("=" * 60)
 
-    # 保存长格式数据
-    save_data(datas, 'data/processed/long_format_with_all_features.pkl')
+    # 保存最终数据字典
+    save_data(datas, 'data/processed/datas.pkl')
+    print("数据字典已保存到: data/processed/datas.pkl")
 
-    # 导出CSV
+    # 导出CSV（可选）
     long_df = datas['long_data']
     output_csv = 'data/processed/long_format_features.csv'
     long_df.to_csv(output_csv, index=False, encoding='utf-8-sig')

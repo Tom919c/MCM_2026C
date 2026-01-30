@@ -52,6 +52,13 @@ def build_index_system(long_df):
     print(f"  - 周总数 (n_weeks): {len(unique_weeks)}")
     print(f"  - 观测总数 (n_obs): {len(long_df)}")
 
+    # 4. Season索引映射
+    unique_seasons = sorted(long_df['season_id'].unique())
+    season_to_idx = {season: idx for idx, season in enumerate(unique_seasons)}
+    long_df['season_idx'] = long_df['season_id'].map(season_to_idx).astype(np.int32)
+
+    print(f"  - 赛季总数 (n_seasons): {len(unique_seasons)}")
+
     # 保存映射
     index_maps = {
         'celeb_to_idx': celeb_to_idx,
@@ -60,9 +67,12 @@ def build_index_system(long_df):
         'idx_to_pro': {idx: name for name, idx in pro_to_idx.items()},
         'week_to_idx': week_to_idx,
         'idx_to_week': {idx: week for week, idx in week_to_idx.items()},
+        'season_to_idx': season_to_idx,
+        'idx_to_season': {idx: season for season, idx in season_to_idx.items()},
         'n_celebs': len(unique_celebs),
         'n_pros': len(unique_pros),
         'n_weeks': len(unique_weeks),
+        'n_seasons': len(unique_seasons),
         'n_obs': len(long_df)
     }
 
@@ -109,29 +119,25 @@ def classify_features():
         'is_international': 'celeb',
         'log_us_state_pop': 'celeb',
 
-        # 历史参赛次数（名人）
-        'celebrity_previous_seasons': 'celeb',
-
         # ========== Professional Dancer-level features (X_pro) ==========
         # 'ballroom_partner_gender': 'pro',  # 字符串，不包含在特征矩阵中
-        'partner_previous_seasons': 'pro',
-        'pro_prev_wins': 'pro',
-        'pro_avg_rank': 'pro',
+        # 注意：pro_prev_wins和pro_avg_rank按赛季变化，应归为obs级别
+        # 'pro_prev_wins': 'pro',  # 移至obs
+        # 'pro_avg_rank': 'pro',   # 移至obs
 
         # ========== Observation-level features (X_obs) ==========
         # 配对特征
         'same_sex_pair': 'obs',
 
-        # 评委分数（原始）
-        'judge1_score': 'obs',
-        'judge2_score': 'obs',
-        'judge3_score': 'obs',
-        'judge4_score': 'obs',
+        # 职业舞者动态特征（按赛季变化）
+        'pro_prev_wins': 'obs',
+        'pro_avg_rank': 'obs',
+
+        # 评委分数（原始总分）
         'judge_score_raw': 'obs',
 
         # 动态表现特征
         'z_score': 'obs',
-        'prev_z_score': 'obs',
         'score_trend': 'obs',
         'is_top_score': 'obs',
         'perfect_score': 'obs',
@@ -139,7 +145,6 @@ def classify_features():
 
         # 排名特征
         'judge_rank': 'obs',
-        'is_bottom_two': 'obs',
 
         # 历史轨迹特征
         'times_in_bottom': 'obs',
@@ -151,7 +156,7 @@ def classify_features():
         'season_era': 'obs',
         'voting_rule_type': 'obs',
         'judge_save_active': 'obs',
-        'eliminations_this_week': 'obs',
+        'elimination_count': 'obs',
 
         # 结果标签
         'result_status': 'obs',
@@ -243,6 +248,8 @@ def build_week_data(long_df, index_maps):
     - eliminated_mask: 被淘汰选手的掩码 [n_obs]
     - rule_method: 投票规则 (0=排名法, 1=百分比法)
     - judge_save_active: 是否有评委拯救环节
+    - season: 该周所属的赛季索引（从0开始）
+    - week: 该周在赛季内的周数（从0开始）
 
     Args:
         long_df: 长格式数据框
@@ -274,9 +281,14 @@ def build_week_data(long_df, index_maps):
         if len(week_rows) > 0:
             rule_method = int(week_rows['voting_rule_type'].iloc[0])
             judge_save_active = bool(week_rows['judge_save_active'].iloc[0])
+            # 获取赛季索引和周数
+            season_idx = int(week_rows['season_idx'].iloc[0])
+            week_id = int(week_rows['week_id'].iloc[0])
         else:
             rule_method = 0
             judge_save_active = False
+            season_idx = 0
+            week_id = 1
 
         week_dict = {
             'obs_mask': week_mask,
@@ -284,7 +296,9 @@ def build_week_data(long_df, index_maps):
             'n_eliminated': int(n_eliminated),
             'eliminated_mask': eliminated_mask.values,
             'rule_method': rule_method,
-            'judge_save_active': judge_save_active
+            'judge_save_active': judge_save_active,
+            'season': season_idx,  # 赛季索引（0-based）
+            'week': week_id - 1    # 周数（转换为0-based）
         }
 
         week_data.append(week_dict)
@@ -363,17 +377,27 @@ def standardize_features(train_data):
     standardization_params = {}
 
     # 需要标准化的特征（排除二值特征和已标准化的特征）
-    # Celebrity features
-    celeb_continuous = ['age', 'age_squared', 'age_centered', 'log_us_state_pop', 'celebrity_previous_seasons']
-    # Pro features
-    pro_continuous = ['partner_previous_seasons', 'pro_prev_wins', 'pro_avg_rank']
-    # Obs features
+    # Celebrity features - 连续特征
+    celeb_continuous = ['age', 'age_squared', 'age_centered', 'log_us_state_pop']
+
+    # Pro features - 连续特征
+    # 注意：pro_prev_wins和pro_avg_rank是obs级别特征，不在这里
+    pro_continuous = []
+
+    # Obs features - 连续特征（排除二值特征）
     obs_continuous = [
-        'judge1_score', 'judge2_score', 'judge3_score', 'judge4_score',
-        'judge_score_raw', 'z_score', 'prev_z_score', 'score_trend',
-        'judge_score_stddev', 'judge_rank', 'times_in_bottom',
-        'cumulative_avg_score', 'weeks_survived'
+        # 评委分数
+        'judge_score_raw', 'z_score', 'score_trend',
+        'judge_score_stddev', 'judge_rank',
+        # 历史轨迹
+        'times_in_bottom', 'cumulative_avg_score', 'weeks_survived',
+        # 职业舞者动态特征（obs级别）
+        'pro_prev_wins', 'pro_avg_rank',
+        # 赛制特征（连续/序数）
+        'season_era', 'elimination_count'
     ]
+    # 二值特征不标准化：same_sex_pair, is_top_score, perfect_score,
+    # teflon_factor, voting_rule_type, judge_save_active, result_status
 
     def standardize_matrix(X, feature_names, continuous_features):
         """标准化矩阵中的连续特征"""
@@ -385,9 +409,9 @@ def standardize_features(train_data):
                 idx = feature_names.index(feat)
                 col = X[:, idx]
 
-                # 计算均值和标准差
-                mean = col.mean()
-                std = col.std()
+                # 计算均值和标准差（忽略NaN值）
+                mean = np.nanmean(col)
+                std = np.nanstd(col)
 
                 # 标准化（避免除以0）
                 if std > 1e-8:
@@ -478,11 +502,13 @@ def build_train_data(config, datas):
         'n_weeks': index_maps['n_weeks'],
         'n_celebs': index_maps['n_celebs'],
         'n_pros': index_maps['n_pros'],
+        'n_seasons': index_maps['n_seasons'],
 
         # 索引数组
         'celeb_idx': long_df['celeb_idx'].values.astype(np.int32),
         'pro_idx': long_df['pro_idx'].values.astype(np.int32),
         'week_idx': long_df['week_idx'].values.astype(np.int32),
+        'season_idx': long_df['season_idx'].values.astype(np.int32),
 
         # 特征矩阵
         'X_celeb': feature_matrices['X_celeb'],
@@ -504,7 +530,8 @@ def build_train_data(config, datas):
 
     print(f"\ntrain_data构建完成:")
     print(f"  - 维度: n_obs={train_data['n_obs']}, n_weeks={train_data['n_weeks']}, "
-          f"n_celebs={train_data['n_celebs']}, n_pros={train_data['n_pros']}")
+          f"n_celebs={train_data['n_celebs']}, n_pros={train_data['n_pros']}, "
+          f"n_seasons={train_data['n_seasons']}")
     print(f"  - 特征矩阵: X_celeb{train_data['X_celeb'].shape}, "
           f"X_pro{train_data['X_pro'].shape}, X_obs{train_data['X_obs'].shape}")
 
