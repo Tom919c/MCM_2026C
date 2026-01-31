@@ -95,7 +95,6 @@ def classify_features():
         # ========== Celebrity-level features (X_celeb) ==========
         # 性别特征
         'is_male': 'celeb',
-        # 'celebrity_gender': 'celeb',  # 字符串，不包含在特征矩阵中
 
         # 年龄特征
         'age': 'celeb',
@@ -106,7 +105,6 @@ def classify_features():
         'age_bucket_old': 'celeb',
 
         # 行业特征（独热编码）
-        # 'industry_category': 'celeb',  # 字符串，不包含在特征矩阵中
         'industry_Business, Controversial & Special Roles': 'celeb',
         'industry_Fashion, Beauty & Modeling': 'celeb',
         'industry_Media, News & Communication': 'celeb',
@@ -120,10 +118,7 @@ def classify_features():
         'log_us_state_pop': 'celeb',
 
         # ========== Professional Dancer-level features (X_pro) ==========
-        # 'ballroom_partner_gender': 'pro',  # 字符串，不包含在特征矩阵中
-        # 注意：pro_prev_wins和pro_avg_rank按赛季变化，应归为obs级别
-        # 'pro_prev_wins': 'pro',  # 移至obs
-        # 'pro_avg_rank': 'pro',   # 移至obs
+        # pro_id 和 pro_is_male 将在 extract_feature_matrices 中动态生成
 
         # ========== Observation-level features (X_obs) ==========
         # 配对特征
@@ -133,18 +128,12 @@ def classify_features():
         'pro_prev_wins': 'obs',
         'pro_avg_rank': 'obs',
 
-        # 评委分数（原始总分）
-        'judge_score_raw': 'obs',
-
         # 动态表现特征
         'z_score': 'obs',
         'score_trend': 'obs',
         'is_top_score': 'obs',
         'perfect_score': 'obs',
         'judge_score_stddev': 'obs',
-
-        # 排名特征
-        'judge_rank': 'obs',
 
         # 历史轨迹特征
         'times_in_bottom': 'obs',
@@ -154,12 +143,8 @@ def classify_features():
 
         # 赛制特征
         'season_era': 'obs',
-        'voting_rule_type': 'obs',
+        'rule_method': 'obs',
         'judge_save_active': 'obs',
-        'elimination_count': 'obs',
-
-        # 结果标签
-        'result_status': 'obs',
     }
 
     return feature_classification
@@ -190,11 +175,9 @@ def extract_feature_matrices(long_df, index_maps, feature_classification):
 
     # 分类特征名称
     celeb_features = [f for f, cat in feature_classification.items() if cat == 'celeb' and f in long_df.columns]
-    pro_features = [f for f, cat in feature_classification.items() if cat == 'pro' and f in long_df.columns]
     obs_features = [f for f, cat in feature_classification.items() if cat == 'obs' and f in long_df.columns]
 
     print(f"  - Celebrity特征数: {len(celeb_features)}")
-    print(f"  - Professional Dancer特征数: {len(pro_features)}")
     print(f"  - Observation特征数: {len(obs_features)}")
 
     # ========== 提取X_celeb ==========
@@ -204,10 +187,19 @@ def extract_feature_matrices(long_df, index_maps, feature_classification):
     X_celeb = celeb_data.values.astype(np.float32)
 
     # ========== 提取X_pro ==========
-    # 对每个职业舞者，取第一次出现的特征值（因为是静态特征）
-    pro_data = long_df.groupby('pro_idx')[pro_features].first()
-    pro_data = pro_data.sort_index()  # 确保按pro_idx排序
-    X_pro = pro_data.values.astype(np.float32)
+    # 构建职业舞者特征矩阵：pro_id 和 is_male
+    # 1. pro_id 就是 pro_idx
+    # 2. is_male 从 ballroom_partner_gender 转换
+    pro_gender_map = long_df.groupby('pro_idx')['ballroom_partner_gender'].first().sort_index()
+    # 注意：性别字段可能是 'Male'/'Female' 或 'male'/'female'，统一转换为小写比较
+    pro_is_male = (pro_gender_map.str.lower() == 'male').astype(np.float32).values
+    pro_id = np.arange(n_pros, dtype=np.float32)
+
+    # 组装 X_pro: [pro_id, is_male]
+    X_pro = np.column_stack([pro_id, pro_is_male])
+    pro_features = ['pro_id', 'is_male']
+
+    print(f"  - Professional Dancer特征数: {len(pro_features)}")
 
     # ========== 提取X_obs ==========
     # 观测级特征直接提取（每行一个观测）
@@ -376,28 +368,26 @@ def standardize_features(train_data):
 
     standardization_params = {}
 
-    # 需要标准化的特征（排除二值特征和已标准化的特征）
+    # 需要标准化的特征（排除二值特征）
     # Celebrity features - 连续特征
     celeb_continuous = ['age', 'age_squared', 'age_centered', 'log_us_state_pop']
 
     # Pro features - 连续特征
-    # 注意：pro_prev_wins和pro_avg_rank是obs级别特征，不在这里
-    pro_continuous = []
+    pro_continuous = ['pro_id']
 
     # Obs features - 连续特征（排除二值特征）
     obs_continuous = [
-        # 评委分数
-        'judge_score_raw', 'z_score', 'score_trend',
-        'judge_score_stddev', 'judge_rank',
-        # 历史轨迹
-        'times_in_bottom', 'cumulative_avg_score', 'weeks_survived',
-        # 职业舞者动态特征（obs级别）
+        # 职业舞者动态特征
         'pro_prev_wins', 'pro_avg_rank',
-        # 赛制特征（连续/序数）
-        'season_era', 'elimination_count'
+        # 动态表现特征
+        'z_score', 'score_trend', 'judge_score_stddev',
+        # 历史轨迹特征
+        'times_in_bottom', 'cumulative_avg_score', 'weeks_survived',
+        # 赛制特征
+        'season_era'
     ]
     # 二值特征不标准化：same_sex_pair, is_top_score, perfect_score,
-    # teflon_factor, voting_rule_type, judge_save_active, result_status
+    # teflon_factor, rule_method, judge_save_active
 
     def standardize_matrix(X, feature_names, continuous_features):
         """标准化矩阵中的连续特征"""
@@ -475,6 +465,13 @@ def build_train_data(config, datas):
     long_df = datas['long_data'].copy()
     missing_judge4_weeks = datas.get('missing_judge4_weeks', [])
 
+    # 预处理：确保 rule_method 和 judge_save_active 字段存在
+    if 'voting_rule_type' in long_df.columns and 'rule_method' not in long_df.columns:
+        long_df['rule_method'] = long_df['voting_rule_type']
+    if 'judge_save_active' not in long_df.columns:
+        # 如果不存在，设置默认值为 0
+        long_df['judge_save_active'] = 0
+
     # Stage 1: 建立索引系统
     print("\n[Stage 1/6] 建立索引系统...")
     index_maps, long_df = build_index_system(long_df)
@@ -535,7 +532,7 @@ def build_train_data(config, datas):
     print(f"  - 特征矩阵: X_celeb{train_data['X_celeb'].shape}, "
           f"X_pro{train_data['X_pro'].shape}, X_obs{train_data['X_obs'].shape}")
 
-    # Stage 6: 标准化特征
+    # Stage 6.5: 标准化特征
     print("\n[Stage 6.5/6] 标准化特征...")
     train_data, standardization_params = standardize_features(train_data)
 

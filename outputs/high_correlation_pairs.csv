@@ -1,0 +1,7 @@
+﻿feature_1,feature_2,correlation
+age,age_centered,1.0000000000000004
+is_international,log_us_state_pop,-0.9879471605802083
+age,age_squared,0.9786426907843657
+age_squared,age_centered,0.9786426893677853
+rule_method,judge_save_active,-0.9306905882720986
+is_male,pro_is_male,-0.8872868304279952

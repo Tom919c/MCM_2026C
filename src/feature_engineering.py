@@ -1027,13 +1027,16 @@ def calculate_cumulative_avg_score(long_df):
         group = group.copy()
         # 计算累计平均分（截止到本周前）
         cumsum = group['judge_score_raw'].shift(1).fillna(0).cumsum()
-        count = group['week_id'] - 1
-        count = count.replace(0, 1)  # 避免除以0
+
+        # 使用组内相对位置作为计数，而不是绝对周数
+        # 这样可以正确处理中途加入的选手
+        count = np.arange(len(group))  # 0, 1, 2, 3, ...
+        count = np.where(count == 0, 1, count)  # 避免除以0
 
         group['cumulative_avg_score'] = cumsum / count
 
-        # 第一周填0
-        group.loc[group['week_id'] == 1, 'cumulative_avg_score'] = 0
+        # 第一次出现（组内第一周）填0
+        group['cumulative_avg_score'].iloc[0] = 0
 
         return group
 

@@ -4,7 +4,7 @@
 raw_data_path: "data/raw/2026_MCM_Problem_C_Data.csv"
 processed_data_path: "data/processed/"
 output_path: "outputs/"
-state_population_file: "NST-EST2025-POP.xlsx"
+state_population_file: "data/raw/NST-EST2025-POP.xlsx"
 
 # 模型路径配置
 model_path: "data/models/model.pkl"
