@@ -1,0 +1,23 @@
+Dancing with the Stars 官方频道资源包括：
+
+1. "Dancing With The Stars" - 官方 YouTube 频道
+   - 频道地址:
+     https://www.youtube.com/dancingwiththestars
+
+2. ABC 网络官方 YouTube 频道
+   - 频道地址:
+     https://www.youtube.com/ABC
+
+3. "Good Morning America" 官方频道和播放列表
+   - 频道地址:
+     https://www.youtube.com/channel/UCH1oRy1dINbMVp3UFWrKP0w
+
+这些官方资源优点：
+- 避免使用高消耗的 YouTube Data API search() 接口；
+- 视频来源稳定、官方发布，有利于提高特征一致性；
+- 可用 playlistItems().list() 和 videos().list() 批量获取 videoId + 统计数据（播放、点赞、评论等）；
+- 同一赛季同一来源的视频在时间序列中更具语义一致性；
+
+注意事项：
+- 有些官方频道没有按“Season/Week”明确分类，需要手动建立 playlist 映射；
+- 需结合节目具体季数、播出周数对数据做时间对齐处理；

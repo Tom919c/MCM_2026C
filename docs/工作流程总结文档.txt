@@ -18,12 +18,90 @@ withdrew  选手退出
     [WARN] judge4_score: mean=nan, std=nan
 
 
+训练特征构造
+datas = {
+    'train_data': {
+        # 维度
+        'n_obs': 100,
+        'n_weeks': 30,
+        'n_celebs': 36,
+        'n_pros': 15,
 
-    粉丝投票百分比趋势线
-    潜在投票强度的趋势线
-    （每条趋势线都将伴随95%后验置信区间，代表性的选手（例如，最终冠军、表现起伏大的选手、存在“争议性淘汰”的选手）） 
-堆叠面积图 (Stacked Area Chart)** 和**热力图 (Heatmap) （赛季每周粉丝投票百分比分布）
-**柱状图** 或 **表格**（淘汰预测准确率）
+        # 索引
+        'celeb_idx': np.array([...], dtype=np.int32),   # [n_obs]
+        'pro_idx': np.array([...], dtype=np.int32),     # [n_obs]
+        'week_idx': np.array([...], dtype=np.int32),    # [n_obs]
+        'season_idx': np.array([...], dtype=np.int32),  # [n_obs]
+
+        # 特征矩阵
+        'X_celeb': np.array([...], dtype=np.float32),   # [n_celebs, ?]
+        'X_pro': np.array([...], dtype=np.float32),     # [n_pros, ?]
+        'X_obs': np.array([...], dtype=np.float32),     # [n_obs, ?]
+
+        # 特征名称
+        'X_celeb_names': [...],
+        'X_pro_names': [...],
+        'X_obs_names': [...],
+
+        # 淘汰规则相关
+        'judge_score_pct': np.array([...], dtype=np.float32),   # 百分比法用
+        'judge_rank_score': np.array([...], dtype=np.float32),  # 排名法用
+
+        # 周级数据
+        'week_data': [
+            {
+                'obs_mask': np.array([...], dtype=bool),
+                'n_contestants': 12,
+                'n_eliminated': 1,
+                'eliminated_mask': np.array([...], dtype=bool),
+                'rule_method': 1,
+                'judge_save_active': False,
+            },
+            # ...
+        ]
+    }
+}
+
+其中
+观测级特征：pro_prev_wins
+，pro_avg_rank，
+same_sex_pair，
+z_score，score_trend，is_top_score，perfect_score，judge_score_stddev，times_in_bottom，cumulative_avg_score，teflon_factor，weeks_survived，season_era，rule_method，judge_save_active
+
+职业舞者特征：pro_id，is_male
+
+名人特征：is_male
+age
+age_squared
+age_centered
+age_bucket_young
+age_bucket_mid
+age_bucket_old
+industry_Business, Controversial & Special Roles
+industry_Fashion, Beauty & Modeling
+industry_Media, News & Communication
+industry_Music & Dance
+industry_Performing Arts & Entertainment
+industry_Public Service & Specialized Professions
+industry_Sports & Physical Performance
+is_international
+log_us_state_pop
 
 
+train_data['week_data']         # list[dict], 长度为 n_weeks
+```
+每个元素的结构：
+{
+    'obs_mask': np.ndarray,       # shape: [n_obs], bool, 该周参赛选手的掩码
+    'n_contestants': int,          # 该周参赛人数
+    'n_eliminated': int,           # 该周淘汰人数
+    'eliminated_mask': np.ndarray, # shape: [n_obs], bool, 被淘汰选手的掩码
+    'rule_method': int,            # 0=排名法, 1=百分比法
+    'judge_save_active': bool,     # 是否有评委拯救环节
+}
 
+在datas字典中的train_data训练特征中，在观测级特征X_obs下再构造一个二值特征，含义是是否有搜索到该名人该周YouTube上的视频       播放信息，特征名称加入X_obs_names  然后根据d:\Code\VSCode\MCM_2026C\data\processed\youtube_failed.csv中的数据，筛选出能  
+  确定视频是哪一周的数据，这些数据对应的名人，赛季，周次下的二值特征就要置为1，没有为0，对二值特征为1的，要提取爬取数据中     
+  的播放量，点赞数，评论数，归一化后构造三个观测级的（X_obs）特征，二值特征为0的这三个特征设为0，告诉我你的理解   
+
+  Cq20050919;
